@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>
+	</title>
+</head>
+<body>
+<script>
+var data = [{
+    "line": "102",
+    "data": {
+        "startStation": {
+            "station": "软件园1路",
+            "line": "102"
+        },
+        "distance": {
+            "text": "3站",
+            "value": 3
+        },
+        "startTime": "13:48", // 开始时间
+        "endTime": "21:59",
+        "repeatRule": [0], // 重复日期 : 0 仅当天   
+        "multi": false,
+        "voice": true
+    },
+    "enable": true,
+    "temp": false
+}, {
+    "line": "103",
+    "data": {
+        "startStation": {
+            "station": "软件园2路",
+            "line": "103"
+        },
+        "distance": {
+            "text": "3站",
+            "value": 3
+        },
+        "startTime": "13:49", // 开始时间
+        "endTime": "22:59",
+        "repeatRule": [0], // 重复日期 : 0 仅当天       1-7  1-日
+        "multi": false,
+        "voice": true
+    },
+    "enable": true,
+    "temp": false
+}, {
+    "line": "318",
+    "data": {
+        "startStation": {
+            "station": "软件园路",
+            "line": "318"
+        },
+        "distance": {
+            "text": "即将到站",
+            "value": 0
+        },
+        "startTime": "06:49",
+        "endTime": "17:59",
+        "repeatRule": [1],
+        "multi": true,
+        "voice": true
+    },
+    "enable": true,
+    "temp": true
+}, {
+    "line": "10",
+    "data": {
+        "startStation": {
+            "station": "软件园1路",
+            "line": "10"
+        },
+        "distance": {
+            "text": "即将到站",
+            "value": 0
+        },
+        "startTime": "09:17",
+        "endTime": "19:26",
+        "repeatRule": [1, 3],
+        "multi": false,
+        "voice": true
+    },
+    "enable": true,
+    "temp": false
+}, {
+    "line": "110",
+    "data": {
+        "startStation": {
+            "station": "软件园6路",
+            "line": "110"
+        },
+        "distance": {
+            "text": "即将到站",
+            "value": 0
+        },
+        "startTime": "10:10",
+        "endTime": "20:26",
+        "repeatRule": [0],
+        "multi": false,
+        "voice": true
+    },
+    "enable": true,
+    "temp": true
+}];
+
+function getReminds() {
+    return data;
+}
+
+
+// UTILS
+function compareTime(time) {
+    var now = new Date,
+        _oDate = millsByTime(time);
+
+    return _oDate - now * 1;
+}
+
+function millsByTime(time) {
+    var now = new Date,
+        year = now.getFullYear(),
+        month = now.getMonth(),
+        date = now.getDate(),
+        _timeArr = time.split(':');
+
+    return new Date(year, month, date, _timeArr[0], _timeArr[1]) * 1;
+}
+
+function prefixZero(num) {
+    num = num.toString();
+    return (num.length < 2) ? '0' + num : num;
+}
+
+function buildTimeByMills(mills) {
+    var _date = new Date(mills);
+    return prefixZero(_date.getHours()) + ':' + prefixZero(_date.getMinutes());
+}
+
+function buildDateByDay(day, data) {
+    var today = new Date().getDay() || 7;
+    var _now = new Date() * 1;
+    if (typeof day != 'number') {
+        data = day;
+        day = today;
+    }
+    var offset, result = [];
+    if (day == today) {
+        offset = 0;
+    } else if (day > today) {
+        offset = day - today;
+    } else {
+        offset = day - today + 7;
+    }
+
+    for (var i = 0, len = data.length; i < len; i++) {
+        var time = data[i]['data']['startTime'];
+        result.push({
+            time: buildDateByOffset(offset, time),
+            line: data[i]['line']
+        })
+    }
+
+    return result;
+
+}
+
+function buildDateByOffset(offset, time) {
+    var now = new Date * 1,
+        mills = offset * 24 * 60 * 60 * 1000,
+        _offsetDate = new Date(now + mills),
+        _time = time ? ' ' + time : '';
+
+    return _offsetDate.getFullYear() + '-' + prefixZero(_offsetDate.getMonth() + 1) + '-' + prefixZero(_offsetDate.getDate()) + _time;
+
+}
+
+/*--------------*/
+// LOGIC
+function getNearestData(pData) {
+    var reminds = getReminds();
+    var now = pData || new Date,
+        day = now.getDay() || 7;
+
+    var todayItems = [];
+
+    var nearestDay = 7,
+        nextWeekNearestDay = day;
+    for (var i = 0, len = reminds.length; i < len; i++) {
+        var repeatRule = reminds[i]['data']['repeatRule'];
+
+        // 如果今天有提醒
+        if (repeatRule.indexOf(day) >= 0 || repeatRule.indexOf(0) >= 0) {
+            todayItems.push(reminds[i]);
+        }
+
+        // 本周最近的一天
+        var forwardDay = 7 - day,
+            addNumDay = 0;
+        while (forwardDay > 0) {
+            addNumDay++;
+            forwardDay--;
+            var nextDay = day + addNumDay;
+            if (repeatRule.indexOf(nextDay) >= 0) {
+                if (nextDay < nearestDay) nearestDay = nextDay;
+                break;
+            }
+        }
+
+
+        // 下周最近的一天
+        var startNumDay = 1;
+        while (startNumDay < day) {
+            if (repeatRule.indexOf(startNumDay) >= 0) {
+                if (startNumDay < nextWeekNearestDay) nextWeekNearestDay = startNumDay;
+                break;
+            }
+            startNumDay++;
+        }
+
+    }
+    return {
+        today: todayItems,
+        nearestDay: nearestDay,
+        nextWeekNearestDay: nextWeekNearestDay
+    }
+}
+
+function filterToday(todayItems) {
+    var processing = [],
+        nearest = [];
+    var nearestTime = '23:59';
+    for (var i = 0, len = todayItems.length; i < len; i++) {
+        var todayItem = todayItems[i],
+            startTime = todayItem.data.startTime,
+            endTime = todayItem.data.endTime;
+        if (compareTime(startTime) <= 0 && compareTime(endTime) > 0) { // 进行中
+            //processing.push(todayItem);
+            //continue;
+        } else if (compareTime(startTime) > 0) { // 未到
+            if (millsByTime(startTime) < millsByTime(nearestTime))
+                nearestTime = startTime;
+        } else { // 过期
+
+        }
+    }
+    //if(processing.length) return processing;
+
+    // 未到筛选
+    for (var i = 0, len = todayItems.length; i < len; i++) {
+        var todayItem = todayItems[i],
+            startTime = todayItem.data.startTime;
+        if (startTime == nearestTime)
+            nearest.push(todayItem);
+    }
+    return nearest;
+}
+
+function filterWeek(nearestDay) {
+    var reminds = getReminds(),
+        nearest = [],
+        result = [];
+    var nearestTime = '23:59';
+    for (var i = 0, len = reminds.length; i < len; i++) {
+        var repeatRule = reminds[i]['data']['repeatRule'];
+        if (repeatRule.indexOf(nearestDay) >= 0)
+            nearest.push(reminds[i]);
+    }
+    for (var i = 0, len = nearest.length; i < len; i++) {
+        var startTime = nearest[i]['data']['startTime'];
+        if (millsByTime(startTime) < millsByTime(nearestTime))
+            nearestTime = startTime;
+    }
+    for (var i = 0, len = nearest.length; i < len; i++) {
+        var startTime = nearest[i]['data']['startTime'];
+        if (startTime == nearestTime)
+            result.push(nearest[i]);
+    }
+
+    return result;
+}
+
+function getNearestDay() {
+    var nearestData = getNearestData();
+    var reminds = data;
+    var nearest;
+    var todayItems = nearestData.today,
+        todayResult = filterToday(todayItems),
+        weekResult = filterWeek(nearestData.nearestDay),
+        nextWeekResult = filterWeek(nearestData.nextWeekNearestDay);
+
+    if (todayResult.length) {
+        return buildDateByDay(todayResult);
+    } else if (weekResult.length) {
+        return buildDateByDay(nearestData.nearestDay, weekResult);
+    } else if (nextWeekResult.length) {
+        return buildDateByDay(nearestData.nextWeekNearestDay, nextWeekResult);
+    } else {
+        return false;
+    }
+
+}
+
+function getProcessingData() {
+    var reminds = getReminds();
+    var now = new Date,
+        day = now.getDay() || 7;
+    var processingData = [];
+    for (var i = 0, len = reminds.length; i < len; i++) {
+        var repeatRule = reminds[i]['data']['repeatRule'],
+            startTime = reminds[i]['data']['startTime'],
+            endTime = reminds[i]['data']['endTime'];
+
+        // 如果今天有提醒
+        if ((repeatRule.indexOf(day) >= 0 || repeatRule.indexOf(0) >= 0) && (compareTime(startTime) <= 0 && compareTime(endTime) > 0)) {
+            processingData.push(reminds[i]);
+        }
+    }
+
+    return processingData;
+}
+
+
+console.log(getNearestDay())
+
+</script>
+
+
+</body>
+</html>
